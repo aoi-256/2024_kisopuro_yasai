@@ -133,15 +133,18 @@ if __name__ == '__main__':
             val_loss_history.append(val_loss)
 
             print(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss}, Val Loss: {val_loss}')
+
+            if 
             if es(val_loss, model):
                 break
+
             
 
         return train_loss_history, val_loss_history
     
     # モデルのトレーニング
-    num_epochs = 100
-    batch_size = 16
+    num_epochs = 1000
+    batch_size = 8
     train_loss_history, val_loss_history = train_model(model, X_train, y_train, X_val, y_val, num_epochs, batch_size)
 
 
