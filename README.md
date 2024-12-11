@@ -26,5 +26,8 @@
 
 ・現在開発中
 
+#### 現在の進捗
+
+![negi_data-amount_01](https://github.com/user-attachments/assets/58c31738-0c87-44db-9f92-ad0a5fb6434a)
 
 
