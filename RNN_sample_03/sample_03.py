@@ -32,6 +32,9 @@ class EarlyStopping:
                 print(f'EarlyStopping counter: {self.counter} out of {self.patience}')  #現在のカウンタを表示する
             if self.counter >= self.patience:  #設定カウントを上回ったらストップフラグをTrueに変更
                 self.early_stop = True
+
+                return True #self.early_stop = Trueがうまく動作しないので応急処置
+            
         else:  #ベストスコアを更新した場合
             self.best_score = score  #ベストスコアを上書き
             self.checkpoint(val_loss, model)  #モデルを保存してスコア表示
@@ -69,7 +72,15 @@ def create_sequences(data, seq_length):
     return np.array(xs), np.array(ys)
 
 if __name__ == '__main__':
-    np.random.seed(123)
+
+    #params
+
+    seq_length = 90
+    num_epochs = 2000
+    batch_size = 32
+    test_data_size = 0.2 #学習データと評価用のデータの比率
+    lr = 0.0001 #学習率
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f'Using device: {device}')
 
@@ -87,16 +98,16 @@ if __name__ == '__main__':
     target_scaled = scaler.fit_transform(target.values.reshape(-1, 1))
 
     # シーケンスデータの作成
-    seq_length = 30  # 30日間のデータを使用
+    # seq_length = 30(paramに移動)
     X, y = create_sequences(features_scaled, seq_length)
 
     # データのトレーニングセットと検証セットへの分割
-    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, shuffle=False)
+    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size = test_data_size, shuffle=False)
 
     # モデルの構築
-    model = LSTMModel(input_dim=1, hidden_dim=50, output_dim=1, num_layers=2).to(device)
+    model = LSTMModel(input_dim=1, hidden_dim=100, output_dim=1, num_layers=2).to(device)
     criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.Adam(model.parameters(), lr)
     es = EarlyStopping(patience=10, verbose=True)
 
     def train_model(model, X_train, y_train, X_val, y_val, num_epochs, batch_size):
@@ -104,6 +115,7 @@ if __name__ == '__main__':
         val_loss_history = []
         
         for epoch in range(num_epochs):
+
             model.train()
             epoch_loss = 0
             x_, t_ = shuffle(X_train, y_train)
@@ -134,7 +146,6 @@ if __name__ == '__main__':
 
             print(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss}, Val Loss: {val_loss}')
 
-            if 
             if es(val_loss, model):
                 break
 
@@ -143,8 +154,8 @@ if __name__ == '__main__':
         return train_loss_history, val_loss_history
     
     # モデルのトレーニング
-    num_epochs = 1000
-    batch_size = 8
+    #num_epochs = 1000 (paramに移動)
+    #batch_size = 8(paramに移動)
     train_loss_history, val_loss_history = train_model(model, X_train, y_train, X_val, y_val, num_epochs, batch_size)
 
 
@@ -174,14 +185,11 @@ if __name__ == '__main__':
     # 予測値を可視化
     plt.figure(figsize=(15, 5))
 
-    # トレーニングデータの予測結果
-    plt.plot(range(len(target[:len(train_predictions)])), target[:len(train_predictions)], label='Actual Train Price')
-    plt.plot(range(len(train_predictions)), train_predictions, label='Predicted Train Price')
-
-    # 検証データの予測結果
-    val_start_idx = len(target[:len(train_predictions)])
-    plt.plot(range(val_start_idx, val_start_idx + len(val_predictions)), target[val_start_idx:val_start_idx + len(val_predictions)], label='Actual Val Price')
-    plt.plot(range(val_start_idx, val_start_idx + len(val_predictions)), val_predictions, label='Predicted Val Price')
+    # トレーニングデータと検証データの予測結果をまとめて表示
+    plt.plot(range(len(target)), target, label='Actual Price')
+    plt.plot(range(len(train_predictions)), train_predictions, label='Predicted Price (Train)')
+    val_start_idx = len(train_predictions)
+    plt.plot(range(val_start_idx, val_start_idx + len(val_predictions)), val_predictions, label='Predicted Price (Val)')
 
     plt.legend()
     plt.show()
