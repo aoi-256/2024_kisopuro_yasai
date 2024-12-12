@@ -8,6 +8,10 @@
 
 ## 各ファイルについて
 
+### negi_data.csv
+
+コンテストのデータからねぎに関する項目を抽出し、並び替えたもの
+
 ### RNN_sample_01 
 
 ・三角関数関数の予測
@@ -27,6 +31,8 @@
 ・現在開発中
 
 #### 現在の進捗
+
+・産地情報を数値データにして取り込み中
 
 ![negi_data-amount_01](https://github.com/user-attachments/assets/58c31738-0c87-44db-9f92-ad0a5fb6434a)
 
