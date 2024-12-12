@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import OneHotEncoder
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -75,9 +76,9 @@ if __name__ == '__main__':
 
     #params
 
-    seq_length = 90
-    num_epochs = 2000
-    batch_size = 32
+    seq_length = 30
+    num_epochs = 1000
+    batch_size = 16
     test_data_size = 0.2 #学習データと評価用のデータの比率
     lr = 0.0001 #学習率
 
@@ -85,16 +86,58 @@ if __name__ == '__main__':
     print(f'Using device: {device}')
 
     # データの読み込み
-    data = pd.read_csv('negi_data.csv')
+    data = pd.read_csv('negi_data.csv', encoding='shift_jis')
+
+    """ 価格データの処理 """
+
+    # 許容できる最小値と最大値を定義
+    lower_bound = 500
+    upper_bound = 5000
+
+    # 外れ値を処理する関数を定義
+    def handle_outliers(series, lower_bound, upper_bound):
+        series = series.apply(lambda x: lower_bound if x < lower_bound else x)
+        series = series.apply(lambda x: upper_bound if x > upper_bound else x)
+        return series
+
+    # price列の外れ値を処理
+    data['price'] = handle_outliers(data['price'], lower_bound, upper_bound)
+
+    """ 日付データの処理 """
+
     data['date'] = pd.to_datetime(data['date'])
+
+    """ 産地データの処理 """
+
+    # area列を処理
+    area = [elem.split('_') for elem in data['area']]
+
+    # 各要素を列として扱うためにデータフレームに変換
+    area_data = pd.DataFrame(area)
+
+    # Nanを埋める（もし存在する場合）
+    area_data = area_data.fillna('')
+
+    # OneHotEncoderを使用してエンコード
+    area_encoder = OneHotEncoder(sparse_output=False)
+    area_encoded = area_encoder.fit_transform(area_data.apply(lambda x: ' '.join(x), axis=1).str.get_dummies(sep=' '))
+
+    # 各要素の配列を出力
+    elements = area_data.values.T.tolist()
+
+    for i, element_list in enumerate(elements, start=1):
+
+        data['area_' + str(i)] = element_list
     
+    """ 学習データの設定 """
+
     # 特徴量とターゲットの分離
-    features = data[['date', 'amount']]
+    features = data[['date', 'amount', 'area_1', 'area_2', 'area_3']]
     target = data['price']
 
     # データの標準化
     scaler = MinMaxScaler()
-    features_scaled = scaler.fit_transform(features[['amount']])
+    features_scaled = scaler.fit_transform(features[['amount', 'area_1', 'area_2', 'area_3']])
     target_scaled = scaler.fit_transform(target.values.reshape(-1, 1))
 
     # シーケンスデータの作成
@@ -105,7 +148,7 @@ if __name__ == '__main__':
     X_train, X_val, y_train, y_val = train_test_split(X, y, test_size = test_data_size, shuffle=False)
 
     # モデルの構築
-    model = LSTMModel(input_dim=1, hidden_dim=100, output_dim=1, num_layers=2).to(device)
+    model = LSTMModel(input_dim=4, hidden_dim=100, output_dim=1, num_layers=2).to(device)
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr)
     es = EarlyStopping(patience=10, verbose=True)
