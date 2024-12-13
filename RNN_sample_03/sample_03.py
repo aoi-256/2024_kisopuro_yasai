@@ -86,7 +86,7 @@ if __name__ == '__main__':
     print(f'Using device: {device}')
 
     # データの読み込み
-    data = pd.read_csv('negi_data.csv', encoding='shift_jis')
+    data = pd.read_csv('raw_negi_data.csv', encoding='shift_jis')
 
     """ 価格データの処理 """
 

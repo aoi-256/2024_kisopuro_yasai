@@ -236,6 +236,12 @@ if __name__ == '__main__':
     # 予測値を可視化
     plt.figure(figsize=(15, 5))
 
+    # 年が変わるインデックスを特定(new)
+    data['year'] = data['date'].dt.year
+    year_change_indices = data[data['year'].diff() != 0].index
+    for idx in year_change_indices:
+        plt.axvline(x=idx, color='r', linestyle='--', linewidth=1)
+
     # トレーニングデータと検証データの予測結果をまとめて表示
     plt.plot(range(len(target)), target, label='Actual Price')
     plt.plot(range(len(train_predictions)), train_predictions, label='Predicted Price (Train)')
