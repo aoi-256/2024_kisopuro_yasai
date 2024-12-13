@@ -33,9 +33,11 @@ def area_data_fill(df, value_col, date_col):
 
 
 data = pd.read_csv('negi_data.csv', encoding='shift_jis')
+wether = pd.read_csv("negi_wether.csv")
 
 # 日付をdatetime形式に変換
 data['date'] = pd.to_datetime(data['date'], format='%Y%m%d')
+wether['date'] = pd.to_datetime(wether['date'], format='%Y%m%d')
 
 ''' データの補完 '''
 
@@ -88,12 +90,15 @@ data['area_3'] = [''.join(map(str, row)) for row in encoded_area_3]
 
 # 20051231のデータを削除
 data = data[data['date'] >= '2006-01-01']
+wether = wether[wether['date'] >= '2006-01-01']
 
 # 20230101のデータを削除
 data = data[data['date'] < '2023-01-01']
+wether = wether[wether['date'] < '2023-01-01']
 
 # areaのデータを削除（使用しないため）
 data = data.drop(columns=['area'])
 
-# 結果を表示
 print(data)
+print(wether)
+
