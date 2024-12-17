@@ -69,11 +69,11 @@ def create_sequences(data, seq_length):
         x = data[i:i+seq_length]
         y = data[i+seq_length]
 
-        if isinstance(y, np.ndarray) and y.ndim > 1:
-            y = y[0]  # 価格データだけを選択
+        #if isinstance(y, np.ndarray) and y.ndim > 1:
+        y_0 = y[0]  # 価格データだけを選択
         
         xs.append(x)
-        ys.append(y)
+        ys.append(y_0)
     return np.array(xs), np.array(ys)
 
 if __name__ == '__main__':
@@ -90,56 +90,7 @@ if __name__ == '__main__':
     print(f'Using device: {device}')
 
     # データの読み込み
-    data = pd.read_csv('negi_data.csv', encoding='shift_jis')
-
-    """ 価格データの処理 """
-
-    # 許容できる最小値と最大値を定義
-    lower_bound = 500
-    upper_bound = 5000
-
-    # 外れ値を処理する関数を定義
-    def handle_outliers(series, lower_bound, upper_bound):
-        series = series.apply(lambda x: lower_bound if x < lower_bound else x)
-        series = series.apply(lambda x: upper_bound if x > upper_bound else x)
-        return series
-
-    # price列の外れ値を処理
-    data['price'] = handle_outliers(data['price'], lower_bound, upper_bound)
-
-    """ 日付データの処理 """
-
-    data['date'] = pd.to_datetime(data['date'])
-
-    """ 産地データの処理 """
-
-    area = [elem.split('_') for elem in data['area']]
-
-    # 各要素を列として扱うためにデータフレームに変換
-    area_data = pd.DataFrame(area)
-
-    # データがないところと各地の項を空にする
-    #area_data = area_data.replace('各地', '')
-    area_data = area_data.fillna('')
-
-    # 分割したデータの1番目の要素をdata['area_1']に格納
-    data['area_1'] = area_data[0]
-    data['area_2'] = area_data[1]
-    data['area_3'] = area_data[2]
-
-    encoder = OneHotEncoder(sparse_output=False)
-
-    # area_1のエンコード
-    encoded_area_1 = encoder.fit_transform(data[['area_1']]).astype(int)
-    data['area_1'] = [''.join(map(str, row)) for row in encoded_area_1]
-
-    # area_2のエンコード
-    encoded_area_2 = encoder.fit_transform(data[['area_2']]).astype(int)
-    data['area_2'] = [''.join(map(str, row)) for row in encoded_area_2]
-
-    # area_3のエンコード
-    encoded_area_3 = encoder.fit_transform(data[['area_3']]).astype(int)
-    data['area_3'] = [''.join(map(str, row)) for row in encoded_area_3]
+    data = pd.read_csv('new_negi_data.csv', encoding='shift_jis')
     
     """ 学習データの設定 """
 
@@ -242,7 +193,7 @@ if __name__ == '__main__':
 
     # トレーニングデータと検証データの予測結果をまとめて表示
     plt.plot(range(len(target)), target, label='Actual Price')
-    plt.plot(range(len(train_predictions)), train_predictions, label='Predicted Price (Train)')
+    plt.plot(range(len(train_predictions)), train_predictions[0], label='Predicted Price (Train)')
     val_start_idx = len(train_predictions)
     plt.plot(range(val_start_idx, val_start_idx + len(val_predictions)), val_predictions, label='Predicted Price (Val)')
 

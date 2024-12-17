@@ -9,35 +9,12 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import OneHotEncoder
 
-
-def area_data_fill(df, value_col, date_col):
-
-    is_nan = df[value_col].isna()
-    nan_indices = np.where(is_nan)[0]
-    
-    if len(nan_indices) == 0:
-        return df
-
-    start_idx = nan_indices[0]
-    end_idx = nan_indices[-1] + 1
-
-    # 連続する欠損値の長さを数える
-    nan_length = end_idx - start_idx
-
-    # 前半部分を前方補完、後半部分を後方補完
-    half_length = nan_length // 2
-    df[value_col].iloc[start_idx:start_idx + half_length] = df[value_col].iloc[start_idx - 1]
-    df[value_col].iloc[start_idx + half_length:end_idx] = df[value_col].iloc[end_idx]
-
-    return df
-
-
 data = pd.read_csv('negi_data.csv', encoding='shift_jis')
-wether = pd.read_csv("negi_wether.csv")
+weather = pd.read_csv("negi_weather.csv")
 
 # 日付をdatetime形式に変換
 data['date'] = pd.to_datetime(data['date'], format='%Y%m%d')
-wether['date'] = pd.to_datetime(wether['date'], format='%Y%m%d')
+weather['date'] = pd.to_datetime(weather['date'], format='%Y%m%d')
 
 ''' データの補完 '''
 
@@ -53,7 +30,7 @@ data['price'] = data['price'].interpolate(method='linear')
 data['amount'] = data['amount'].interpolate(method='linear')
 
 # 産地データの補完
-data['area'] = data['area'].fillna(method='ffill')
+data['area'] = data['area'].ffill()
 
 ''' 産地データの処理 '''
 
@@ -90,15 +67,21 @@ data['area_3'] = [''.join(map(str, row)) for row in encoded_area_3]
 
 # 20051231のデータを削除
 data = data[data['date'] >= '2006-01-01']
-wether = wether[wether['date'] >= '2006-01-01']
+wether = weather[weather['date'] >= '2006-01-01']
 
 # 20230101のデータを削除
 data = data[data['date'] < '2023-01-01']
 wether = wether[wether['date'] < '2023-01-01']
 
 # areaのデータを削除（使用しないため）
+
+''' 処理したデータの合成 '''
+
 data = data.drop(columns=['area'])
 
-print(data)
-print(wether)
+data['date'] = pd.to_datetime(data['date']) 
+weather['date'] = pd.to_datetime(weather['date']) 
+train_data = pd.merge(data, weather, on='date')
+
+train_data.to_csv('new_negi_data.csv', index=False)
 

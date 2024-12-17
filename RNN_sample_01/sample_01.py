@@ -5,7 +5,6 @@ from sklearn.utils import shuffle
 import torch
 import torch.nn as nn
 import torch.optim as optimizers
-# from keras.callbacks import EarlyStopping
 
 
 class EarlyStopping:

@@ -67,7 +67,9 @@ def create_sequences(data, seq_length):
     xs, ys = [], []
     for i in range(len(data) - seq_length):
         x = data[i:i+seq_length]
-        y = data[i+seq_length]
+        y = data[i+seq_length]  # ターゲットを1列に限定
+        if isinstance(y, np.ndarray) and y.ndim > 1:
+            y = y[0]  # 価格データだけを選択
         xs.append(x)
         ys.append(y)
     return np.array(xs), np.array(ys)
@@ -85,40 +87,44 @@ if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f'Using device: {device}')
 
-    # データの読み込み
     data = pd.read_csv('negi_data.csv', encoding='shift_jis')
+    weather = pd.read_csv("negi_weather.csv")
 
-    """ 価格データの処理 """
+    # 日付をdatetime形式に変換
+    data['date'] = pd.to_datetime(data['date'], format='%Y%m%d')
+    weather['date'] = pd.to_datetime(weather['date'], format='%Y%m%d')
 
-    # 許容できる最小値と最大値を定義
-    lower_bound = 500
-    upper_bound = 5000
+    ''' データの補完 '''
 
-    # 外れ値を処理する関数を定義
-    def handle_outliers(series, lower_bound, upper_bound):
-        series = series.apply(lambda x: lower_bound if x < lower_bound else x)
-        series = series.apply(lambda x: upper_bound if x > upper_bound else x)
-        return series
+    # 20060101から全ての日付を含むデータフレームを作成
+    full_date_range = pd.date_range(start='2005-12-31', end=data['date'].max())
+    full_data = pd.DataFrame(full_date_range, columns=['date'])
+    data = pd.merge(full_data, data, on='date', how='left')
 
-    # price列の外れ値を処理
-    data['price'] = handle_outliers(data['price'], lower_bound, upper_bound)
+    #full_date_range = pd.date_range(start='2005-12-31', end=weather['date'].max())
+    #full_data = pd.DataFrame(full_date_range, columns=['date'])
+    #weather = pd.merge(full_data, weather, on='date', how='left')
 
-    """ 日付データの処理 """
+    # 数値データの線形補完
+    data['price'] = data['price'].interpolate(method='linear')
+    data['amount'] = data['amount'].interpolate(method='linear')
 
-    data['date'] = pd.to_datetime(data['date'])
+    # 産地データの補完
+    data['area'] = data['area'].ffill()
 
-    """ 産地データの処理 """
+    ''' 産地データの処理 '''
 
+    # area列を処理
     area = [elem.split('_') for elem in data['area']]
 
     # 各要素を列として扱うためにデータフレームに変換
     area_data = pd.DataFrame(area)
 
-    # データがないところと各地の項を空にする
+    # '各地'を空文字列に置き換え、Nanを埋める
     #area_data = area_data.replace('各地', '')
     area_data = area_data.fillna('')
 
-    # 分割したデータの1番目の要素をdata['area_1']に格納
+    # 分割したデータのi番目の要素をdata['area_i']に格納
     data['area_1'] = area_data[0]
     data['area_2'] = area_data[1]
     data['area_3'] = area_data[2]
@@ -136,6 +142,26 @@ if __name__ == '__main__':
     # area_3のエンコード
     encoded_area_3 = encoder.fit_transform(data[['area_3']]).astype(int)
     data['area_3'] = [''.join(map(str, row)) for row in encoded_area_3]
+
+    ''' 余分なデータの削除 '''
+
+    # 20051231のデータを削除
+    data = data[data['date'] >= '2006-01-01']
+    wether = weather[weather['date'] >= '2006-01-01']
+
+    # 20230101のデータを削除
+    data = data[data['date'] < '2023-01-01']
+    wether = wether[wether['date'] < '2023-01-01']
+
+    # areaのデータを削除（使用しないため）
+
+    ''' 処理したデータの合成 '''
+
+    data = data.drop(columns=['area'])
+
+    data['date'] = pd.to_datetime(data['date']) 
+    weather['date'] = pd.to_datetime(weather['date']) 
+    train_data = pd.merge(data, weather, on='date')
     
     """ 学習データの設定 """
 
@@ -154,6 +180,10 @@ if __name__ == '__main__':
 
     # データのトレーニングセットと検証セットへの分割
     X_train, X_val, y_train, y_val = train_test_split(X, y, test_size = test_data_size, shuffle=False)
+
+    # y_train, y_val の形状を [batch_size, 1] に変更
+    y_train = y_train.reshape(-1, 1)
+    y_val = y_val.reshape(-1, 1)
 
     # モデルの構築
     model = LSTMModel(input_dim=4, hidden_dim=100, output_dim=1, num_layers=2).to(device)
@@ -235,12 +265,6 @@ if __name__ == '__main__':
 
     # 予測値を可視化
     plt.figure(figsize=(15, 5))
-
-    # 年が変わるインデックスを特定(new)
-    data['year'] = data['date'].dt.year
-    year_change_indices = data[data['year'].diff() != 0].index
-    for idx in year_change_indices:
-        plt.axvline(x=idx, color='r', linestyle='--', linewidth=1)
 
     # トレーニングデータと検証データの予測結果をまとめて表示
     plt.plot(range(len(target)), target, label='Actual Price')
