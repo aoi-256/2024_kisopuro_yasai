@@ -85,6 +85,9 @@ if __name__ == '__main__':
     batch_size = 16
     test_data_size = 0.2 #学習データと評価用のデータの比率
     lr = 0.0001 #学習率
+    lower_bound = 500 #許容できる最小値と最大値を定義
+    upper_bound = 5000
+
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f'Using device: {device}')
@@ -93,10 +96,6 @@ if __name__ == '__main__':
     data = pd.read_csv('negi_data.csv', encoding='shift_jis')
 
     """ 価格データの処理 """
-
-    # 許容できる最小値と最大値を定義
-    lower_bound = 500
-    upper_bound = 5000
 
     # 外れ値を処理する関数を定義
     def handle_outliers(series, lower_bound, upper_bound):
