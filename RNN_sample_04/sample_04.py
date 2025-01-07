@@ -14,7 +14,7 @@ class EarlyStopping:
 
     def __init__(self, patience=5, verbose=False, path='checkpoint_model.pth'):
         """引数：最小値の非更新数カウンタ、表示設定、モデル格納path"""
-        self.patience = patience    #設定ストップカウンタ
+        self.patience = 5    #設定ストップカウンタ
         self.verbose = verbose      #表示の有無
         self.counter = 0            #現在のカウンタ値
         self.best_score = None      #ベストスコア
@@ -66,10 +66,8 @@ class LSTMModel(nn.Module):
 def create_sequences(data, seq_length):
     xs, ys = [], []
     for i in range(len(data) - seq_length):
-        x = data[i:i+seq_length]
-        y = data[i+seq_length]  # ターゲットを1列に限定
-        if isinstance(y, np.ndarray) and y.ndim > 1:
-            y = y[0]  # 価格データだけを選択
+        x = data[i:i + seq_length]
+        y = data[i + seq_length, 0]  # 価格データの次のタイムステップを取得（1列目）
         xs.append(x)
         ys.append(y)
     return np.array(xs), np.array(ys)
@@ -82,114 +80,77 @@ if __name__ == '__main__':
     num_epochs = 1000
     batch_size = 16
     test_data_size = 0.2 #学習データと評価用のデータの比率
-    lr = 0.0001 #学習率
+    #lr = 0.0001 #学習率
+    lr = 0.001
+
+    # LSTMmodel 
+
+    LSTM_in_dim = 7
+    LSTM_out_dim = 1
+    LSTM_hidden_dim = 100
+    LSTM_layers = 2
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f'Using device: {device}')
 
-    data = pd.read_csv('negi_data.csv', encoding='shift_jis')
-    weather = pd.read_csv("negi_weather.csv")
-
-    # 日付をdatetime形式に変換
-    data['date'] = pd.to_datetime(data['date'], format='%Y%m%d')
-    weather['date'] = pd.to_datetime(weather['date'], format='%Y%m%d')
-
-    ''' データの補完 '''
-
-    # 20060101から全ての日付を含むデータフレームを作成
-    full_date_range = pd.date_range(start='2005-12-31', end=data['date'].max())
-    full_data = pd.DataFrame(full_date_range, columns=['date'])
-    data = pd.merge(full_data, data, on='date', how='left')
-
-    #full_date_range = pd.date_range(start='2005-12-31', end=weather['date'].max())
-    #full_data = pd.DataFrame(full_date_range, columns=['date'])
-    #weather = pd.merge(full_data, weather, on='date', how='left')
-
-    # 数値データの線形補完
-    data['price'] = data['price'].interpolate(method='linear')
-    data['amount'] = data['amount'].interpolate(method='linear')
-
-    # 産地データの補完
-    data['area'] = data['area'].ffill()
-
-    ''' 産地データの処理 '''
-
-    # area列を処理
-    area = [elem.split('_') for elem in data['area']]
-
-    # 各要素を列として扱うためにデータフレームに変換
-    area_data = pd.DataFrame(area)
-
-    # '各地'を空文字列に置き換え、Nanを埋める
-    #area_data = area_data.replace('各地', '')
-    area_data = area_data.fillna('')
-
-    # 分割したデータのi番目の要素をdata['area_i']に格納
-    data['area_1'] = area_data[0]
-    data['area_2'] = area_data[1]
-    data['area_3'] = area_data[2]
-
-    encoder = OneHotEncoder(sparse_output=False)
-
-    # area_1のエンコード
-    encoded_area_1 = encoder.fit_transform(data[['area_1']]).astype(int)
-    data['area_1'] = [''.join(map(str, row)) for row in encoded_area_1]
-
-    # area_2のエンコード
-    encoded_area_2 = encoder.fit_transform(data[['area_2']]).astype(int)
-    data['area_2'] = [''.join(map(str, row)) for row in encoded_area_2]
-
-    # area_3のエンコード
-    encoded_area_3 = encoder.fit_transform(data[['area_3']]).astype(int)
-    data['area_3'] = [''.join(map(str, row)) for row in encoded_area_3]
-
-    ''' 余分なデータの削除 '''
-
-    # 20051231のデータを削除
-    data = data[data['date'] >= '2006-01-01']
-    wether = weather[weather['date'] >= '2006-01-01']
-
-    # 20230101のデータを削除
-    data = data[data['date'] < '2023-01-01']
-    wether = wether[wether['date'] < '2023-01-01']
-
-    # areaのデータを削除（使用しないため）
-
-    ''' 処理したデータの合成 '''
-
-    data = data.drop(columns=['area'])
-
-    data['date'] = pd.to_datetime(data['date']) 
-    weather['date'] = pd.to_datetime(weather['date']) 
-    train_data = pd.merge(data, weather, on='date')
-    
-    """ 学習データの設定 """
+   # CSVの読み込みと事前処理
+    data = pd.read_csv('negi_train.csv', encoding='shift_jis')
 
     # 特徴量とターゲットの分離
-    features = data[['date', 'amount', 'area_1', 'area_2', 'area_3']]
+    features = data[['amount', 'area_1', 'area_2', 'area_3', 'rain', 'sun', 'temp']]
     target = data['price']
 
-    # データの標準化
-    scaler = MinMaxScaler()
-    features_scaled = scaler.fit_transform(features[['amount', 'area_1', 'area_2', 'area_3']])
-    target_scaled = scaler.fit_transform(target.values.reshape(-1, 1))
+    # 特徴量のスケーリング
+    #scaler = MinMaxScaler()
+    #features_scaled = scaler.fit_transform(features)
+
+    # ターゲットのスケーリング
+    #target_scaled = MinMaxScaler().fit_transform(target.values.reshape(-1, 1)).flatten()  # flatten() で1次元に
+
+    # 特徴量のスケーリング
+    scaler_X = MinMaxScaler()
+    features_scaled = scaler_X.fit_transform(features)
+
+    # ターゲットのスケーリング
+    scaler_y = MinMaxScaler()
+    target_scaled = scaler_y.fit_transform(target.values.reshape(-1, 1)).flatten()  # flatten() で1次元に
 
     # シーケンスデータの作成
-    # seq_length = 30(paramに移動)
     X, y = create_sequences(features_scaled, seq_length)
 
     # データのトレーニングセットと検証セットへの分割
-    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size = test_data_size, shuffle=False)
+    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=test_data_size, shuffle=False)
+
+    # y_train, y_val の形状を [batch_size, 1] に変更
+
+    # ここでのyに対するreshapeは必要ないはず、train_test_splitで所得するyはシーケンスの次のステップですでに1次元
+    #print(f'X_train shape: {X_train.shape}, y_train shape: {y_train.shape}')  # 確認
+    #print(f'X_val shape: {X_val.shape}, y_val shape: {y_val.shape}')  # 確認
 
     # y_train, y_val の形状を [batch_size, 1] に変更
     y_train = y_train.reshape(-1, 1)
     y_val = y_val.reshape(-1, 1)
 
+    # デバック情報を表示
+
+    print("\n-----学習を開始します------ \n")
+
+    print("input_dim  = " + str(LSTM_in_dim))
+    print("output_dim = " + str(LSTM_out_dim))
+    print("hidden_dim = " + str(LSTM_hidden_dim))
+    print("num_layers = " + str(LSTM_layers) + "\n")
+
+    print("データサイズ = " + str(len(data)))
+    print("学習データサイズ = " + str(len(X_train)))
+    print("評価データサイズ = " + str(len(y_val)) + "\n")
+
+    print("---------------\n")
+
     # モデルの構築
-    model = LSTMModel(input_dim=4, hidden_dim=100, output_dim=1, num_layers=2).to(device)
+    model = LSTMModel(input_dim = LSTM_in_dim, hidden_dim = LSTM_hidden_dim, output_dim = LSTM_out_dim, num_layers = LSTM_layers).to(device)
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr)
-    es = EarlyStopping(patience=10, verbose=True)
+    es = EarlyStopping(patience=5, verbose=True)
 
     def train_model(model, X_train, y_train, X_val, y_val, num_epochs, batch_size):
         train_loss_history = []
@@ -260,8 +221,8 @@ if __name__ == '__main__':
             val_predictions.extend(batch_preds.cpu().numpy())
 
     # 予測値を元のスケールに戻す
-    train_predictions = scaler.inverse_transform(np.array(train_predictions).reshape(-1, 1))
-    val_predictions = scaler.inverse_transform(np.array(val_predictions).reshape(-1, 1))
+    train_predictions = scaler_y.inverse_transform(np.array(train_predictions).reshape(-1, 1))
+    val_predictions = scaler_y.inverse_transform(np.array(val_predictions).reshape(-1, 1))
 
     # 予測値を可視化
     plt.figure(figsize=(15, 5))
